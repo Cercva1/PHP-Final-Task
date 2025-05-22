@@ -53,6 +53,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         header("Location: index.php");
         exit();
     }
+
+    if (isset($_POST['save_password']) && $isLoggedIn) {
+        $service = $_POST['service_name'] ?? '';
+        $passwordToSave = $_POST['saved_password'] ?? '';
+        $user_id = $_SESSION['user_id'];
+        $aes_key = $_SESSION['aes_key'];
+
+        if ($service && $passwordToSave && $aes_key) {
+            $storage = new PasswordStorage($db);
+            if ($storage->save($user_id, $service, $passwordToSave, $aes_key)) {
+                $error = "Password saved successfully!";
+            } else {
+                $error = "Failed to save password.";
+            }
+        } else {
+            $error = "Invalid input or session expired.";
+        }
+    }
+
 }
 
 
@@ -152,9 +171,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   ?>
 
    <h3>Saved Passwords (demo empty)</h3>
-    <p>No saved passwords yet.</p>
+    <form method="POST" action="">
+    <label>Service Name:</label>
+    <input type="text" name="service_name" required />
+    <label>Password:</label>
+    <input type="text" name="saved_password" required />
+    <button name="save_password" type="submit">Save Password</button>
+</form>
 
-    <?php endif; ?>
+<h3>Saved Passwords</h3>
+<?php
+$storage = new PasswordStorage($db);
+$passwords = $storage->fetchAll($_SESSION['user_id']);
+if (count($passwords) === 0) {
+    echo "<p>No saved passwords yet.</p>";
+} else {
+    echo "<ul>";
+    foreach ($passwords as $entry) {
+        list($encrypted_pass, $iv_b64) = explode(':', $entry['password_encrypted']);
+        $iv = base64_decode($iv_b64);
+        $decrypted = openssl_decrypt($encrypted_pass, 'aes-256-cbc', $_SESSION['aes_key'], 0, $iv);
+        echo "<li><strong>" . htmlspecialchars($entry['service_name']) . ":</strong> <code>" . htmlspecialchars($decrypted) . "</code></li>";
+    }
+    echo "</ul>";
+}
+?>
+
+<?php endif; ?>
     
 </body>
 </html>
