@@ -2,28 +2,59 @@
 
 session_start();
 
-require_once 'classes/PasswordGenerator.php';
+require_once("../config/db.php");
+require_once("../classes/User.php");
+require_once("../classes/PasswordGenerator.php");
+require_once("../classes/PasswordStorage.php");
 
-$isLoggedIn = isset($_SESSION['user_id']);
+$db = (new Database())->getConnection();
+
+
 $error = '';
+$isLoggedIn = isset($_SESSION['user_id']);
 
-//Login for demo purposes
-if($_SERVER['REQUEST_METHOD'] == 'POST'){
-    if(isset($_POST['login'])){
-        if($_POST['username'] == 'test' && $_POST['password'] == 'test'){
-            $_SESSION['user_id'] = 1;
-            $_SESSION['username'] = 'test';
-            $isLoggedIn = true;
-        }else{
-            $error = "Invalid login";
-        }
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
-    }elseif (isset($_POST['logout'])){
+    if (isset($_POST['register'])) {
+        $user = new User($db);
+        $user->username = $_POST['reg_username'];
+        $user->password = $_POST['reg_password'];
+        
+        if ($user->register()) {
+            // Registration success, redirect or show message
+            $error = "Registration successful! Please login.";
+        } else {
+            $error = "Registration failed. Username may be taken.";
+        }
+    }
+
+    if (isset($_POST['login'])) {
+        $user = new User($db);
+        $user->username = $_POST['username'];
+        $user->password = $_POST['password'];
+        
+        if ($user->login()) {
+            // Decrypt AES key for session usage
+            list($encrypted_key, $iv_encoded) = explode(':', $user->aes_key_encrypted);
+            $iv = base64_decode($iv_encoded);
+            $aes_key = openssl_decrypt($encrypted_key, 'aes-256-cbc', $user->password, 0, $iv);
+            
+            $_SESSION['user_id'] = $user->id;
+            $_SESSION['username'] = $user->username;
+            $_SESSION['aes_key'] = $aes_key;
+            $isLoggedIn = true;
+        } else {
+            $error = "Invalid login credentials.";
+        }
+    }
+
+    if (isset($_POST['logout'])) {
         session_destroy();
         header("Location: index.php");
         exit();
     }
 }
+
 
 ?>
 
@@ -33,7 +64,20 @@ if($_SERVER['REQUEST_METHOD'] == 'POST'){
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Password Manager - Demo </title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 700px; margin: auto; padding: 20px; }
+    form { border: 1px solid #ccc; padding: 20px; margin-bottom: 20px; }
+    input[type=text], input[type=password], input[type=number] {
+    width: 100%; padding: 8px; margin: 8px 0;
+    }
+    button { padding: 10px; width: 100%; }
+    .flex { display: flex; gap: 20px; }
+    .half { flex: 1; }
+    h2 { margin-top: 0; }
+    .error { color: red; }
+    </style>
 </head>
+
 <body>
 
 <h1>Password Manager</h1>

@@ -20,10 +20,12 @@ class User {
         $key = openssl_random_pseudo_bytes(32); // generate 256-bit AES key
         $iv = openssl_random_pseudo_bytes(16); // generate IV for encryption
         $encrypted_key = openssl_encrypt($key, 'aes-256-cbc', $this->password, 0, $iv); // encrypt key using user password
-
+        
+        $combined = $encrypted_key . ':' . base64_encode($iv); // ✔️ store key and IV together in a variable
+        
         $stmt->bindParam(":username", $this->username);
         $stmt->bindParam(":password_hash", $password_hash);
-        $stmt->bindParam(":aes_key_encrypted", $encrypted_key . ':' . base64_encode($iv)); // store key and IV together
+        $stmt->bindParam(":aes_key_encrypted", $combined);
 
         return $stmt->execute();
     }
